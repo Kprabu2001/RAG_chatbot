@@ -1,0 +1,62 @@
+services:
+  - type: keyvalue
+    name: pdf-rag-cache
+    plan: free
+    region: oregon
+    maxmemoryPolicy: allkeys-lru
+    persistenceMode: "off"
+    ipAllowList: []
+
+  - type: web
+    name: pdf-rag-backend
+    runtime: docker
+    plan: free
+    region: oregon
+    rootDir: backend
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: QDRANT_COLLECTION
+        value: pdf_docs
+      - key: VALKEY_HOST
+        fromService:
+          type: keyvalue
+          name: pdf-rag-cache
+          property: host
+      - key: VALKEY_PORT
+        fromService:
+          type: keyvalue
+          name: pdf-rag-cache
+          property: port
+      - key: CORS_ORIGINS
+        value: "*"
+
+  - type: web
+    name: pdf-rag-frontend
+    runtime: python
+    plan: free
+    region: oregon
+    rootDir: frontend
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+    healthCheckPath: /_stcore/health
+    envVars:
+      - key: BACKEND_URL
+        value: https://pdf-rag-backend.onrender.com
+      - key: PYTHON_VERSION
+        value: 3.12.7
